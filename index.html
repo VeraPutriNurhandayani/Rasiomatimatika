@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lab Rasio: Game Matematika Sensor Gerak</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- MediaPipe Hands untuk Pelacakan Sensor Tangan -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background-color: #090d16;
+            color: #f8fafc;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .mono-font {
+            font-family: 'Space Mono', monospace;
+        }
+        /* Efek HUD & Neon Cyberpunk Ramah Anak */
+        .neon-border-cyan {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.4), inset 0 0 15px rgba(6, 182, 212, 0.2);
+            border: 2px solid #06b6d4;
+        }
+        .neon-border-purple {
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.4), inset 0 0 15px rgba(168, 85, 247, 0.2);
+            border: 2px solid #a855f7;
+        }
+        .neon-border-emerald {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.6), inset 0 0 15px rgba(16, 185, 129, 0.3);
+            border: 2px solid #10b981;
+        }
+        /* Animasi Gelombang Cairan */
+        .liquid-transition {
+            transition: height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        /* Kursor Sensor Virtual */
+        #virtual-cursor {
+            pointer-events: none;
+            z-index: 9999;
+            transition: transform 0.04s linear;
+        }
+        /* Garis Pemindai Radar */
+        @keyframes scanline {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(500%); }
+        }
+        .scanner-beam {
+            background: linear-gradient(to bottom, transparent, rgba(6, 182, 212, 0.4), transparent);
+            animation: scanline 3s linear infinite;
+        }
+        /* Grid Latar Belakang */
+        .bg-cyber-grid {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+        }
+        /* Animasi Splash Screen 6 Detik Zoom-In Halus */
+        @keyframes smoothZoomIn {
+            0% {
+                opacity: 0;
+                transform: scale(0.82);
+            }
+            20% {
+                opacity: 1;
+                transform: scale(0.92);
+            }
+            85% {
+                opacity: 1;
+                transform: scale(1.04);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(1.08);
+            }
+        }
+        .splash-zoom-anim {
+            animation: smoothZoomIn 6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        @keyframes progressFill {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+        .splash-progress-bar {
+            animation: progressFill 6s linear forwards;
+        }
+    </style>
+</head>
+<body class="bg-cyber-grid min-h-screen flex flex-col justify-between relative">
+
+    <!-- A. SPLASH SCREEN (INTRO) - Layar Putih Bersih, Durasi 6 Detik, Animasi Zoom-In Halus -->
+    <div id="splash-screen" class="fixed inset-0 bg-white z-[10000] flex flex-col items-center justify-center p-6 text-center select-none transition-opacity duration-500">
+        <div class="splash-zoom-anim max-w-2xl mx-auto flex flex-col items-center">
+            <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-xl shadow-cyan-500/20 mb-6">
+                <i class="fa-solid fa-shapes text-white text-4xl"></i>
+            </div>
+            <p class="text-xs md:text-sm uppercase tracking-[0.25em] text-slate-400 font-semibold mb-2">
+                Media Pembelajaran Interaktif Matematika
+            </p>
+            <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-800 leading-snug tracking-tight px-4">
+                Created by <span class="bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent">Vera Putri Nurhandayani</span>
+            </h1>
+            <div class="mt-3 inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-bold text-base sm:text-lg md:text-xl shadow-sm">
+                <i class="fa-solid fa-school text-cyan-600"></i>
+                <span>Guru SD UPTD SDN 1 BANDANHURIP</span>
+            </div>
+            <!-- Indikator Loading 6 Detik -->
+            <div class="w-56 sm:w-64 h-1.5 bg-slate-100 rounded-full overflow-hidden mt-8 border border-slate-200">
+                <div class="h-full bg-gradient-to-r from-cyan-500 to-blue-600 splash-progress-bar rounded-full"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- POP UP AWAL (SAMBUTAN & PILIH MODE INTERAKSI) -->
+    <div id="welcome-popup" class="hidden fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[9000] flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-cyan-500/50 rounded-3xl max-w-lg w-full p-6 md:p-8 shadow-[0_0_50px_rgba(6,182,212,0.25)] text-center relative overflow-hidden transform transition-all">
+            <!-- Dekorasi Cahaya Latar -->
+            <div class="absolute -top-20 -right-20 w-40 h-40 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-20 -left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none"></div>
+
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 mx-auto flex items-center justify-center shadow-lg shadow-cyan-500/30 mb-4">
+                <i class="fa-solid fa-hand-sparkles text-white text-3xl"></i>
+            </div>
+
+            <span class="text-[11px] mono-font uppercase px-3 py-1 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
+                Selamat Datang di Laboratorium
+            </span>
+
+            <h2 class="text-2xl md:text-3xl font-extrabold text-white mt-3 mb-2">
+                Lab Rasio Pecahan
+            </h2>
+            <p class="text-xs md:text-sm text-slate-300 leading-relaxed mb-5">
+                Ayo belajar menyederhanakan <b>Rasio Pecahan</b> dengan meracik cairan di tabung reaktor! Kamu bisa menggunakan <b>Sensor Gerakan Tangan</b> maupun <b>Sentuhan Layar</b>.
+            </p>
+
+            <!-- Info Singkat Cara Main -->
+            <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-3.5 text-left text-xs text-slate-300 space-y-2 mb-6">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-video"></i>
+                    </div>
+                    <span><b>Sensor Kamera AI:</b> Lambaikan jari di depan kamera & tahan 1 detik pada tombol untuk menekan.</span>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0">
+                        <i class="fa-solid fa-hand-point-up"></i>
+                    </div>
+                    <span><b>Layar Sentuh & Sensor Virtual:</b> Sentuh langsung di Papan Interaktif Digital, iPad, Tablet, atau HP.</span>
+                </div>
+            </div>
+
+            <!-- Pilihan Tombol Mulai -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="startWithMode('virtual')" class="sensor-target flex-1 py-3.5 px-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/40 font-bold text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-hand-pointer"></i> Mulai Mode Sentuh / Virtual
+                </button>
+                <button onclick="startWithMode('camera')" class="sensor-target flex-1 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-cyan-500 to-emerald-400 hover:from-cyan-400 hover:to-emerald-300 text-slate-950 font-extrabold text-sm shadow-lg shadow-cyan-500/30 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-camera"></i> Mulai + Kamera Sensor
+                </button>
+            </div>
+
+            <p class="text-[11px] text-slate-500 mt-4">
+                Karya: Ibu Vera Putri Nurhandayani • UPTD SDN 1 BANDANHURIP
+            </p>
+        </div>
+    </div>
+
+    <!-- KURSOR SENSOR GERAK TANGAN (Terlihat saat kamera mendeteksi tangan atau mode simulasi) -->
+    <div id="virtual-cursor" class="fixed top-0 left-0 w-16 h-16 -ml-8 -mt-8 hidden items-center justify-center">
+        <!-- Lingkaran Radar Luar -->
+        <div class="absolute inset-0 rounded-full border-2 border-dashed border-cyan-400 animate-spin"></div>
+        <!-- Lingkaran Progress Hover -->
+        <svg class="w-16 h-16 -rotate-90">
+            <circle cx="32" cy="32" r="26" stroke="rgba(6, 182, 212, 0.2)" stroke-width="4" fill="none"></circle>
+            <circle id="cursor-progress" cx="32" cy="32" r="26" stroke="#10b981" stroke-width="5" fill="none" stroke-dasharray="163" stroke-dashoffset="163" class="transition-all duration-75"></circle>
+        </svg>
+        <!-- Titik Inti Sensor -->
+        <div id="cursor-dot" class="w-3.5 h-3.5 bg-cyan-400 rounded-full shadow-[0_0_12px_#06b6d4] absolute"></div>
+    </div>
+
+    <!-- HEADER: NAVIGASI & KONTROL SENSOR -->
+    <header class="w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 z-30">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <!-- Logo & Judul -->
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+                    <i class="fa-solid fa-hand-sparkles text-white text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg md:text-xl font-bold tracking-wide bg-gradient-to-r from-cyan-400 via-teal-200 to-purple-400 bg-clip-text text-transparent">
+                            LAB RASIO PECAHAN
+                        </h1>
+                        <span class="text-[10px] mono-font uppercase px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                            Sensor v2.6
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-400 hidden sm:block">Papan Interaktif • Tablet • Laptop • Sensor Kamera & Gerak</p>
+                </div>
+            </div>
+
+            <!-- Indikator Skor & Level -->
+            <div class="flex items-center gap-2 md:gap-4 bg-slate-800/90 px-3 py-1.5 rounded-2xl border border-slate-700">
+                <div class="text-center px-2">
+                    <span class="text-[10px] text-slate-400 block uppercase">Level</span>
+                    <span id="ui-level" class="text-base md:text-lg font-bold text-cyan-400 mono-font">1/10</span>
+                </div>
+                <div class="h-6 w-px bg-slate-700"></div>
+                <div class="text-center px-2">
+                    <span class="text-[10px] text-slate-400 block uppercase">Skor</span>
+                    <span id="ui-score" class="text-base md:text-lg font-bold text-emerald-400 mono-font">0</span>
+                </div>
+                <div class="h-6 w-px bg-slate-700"></div>
+                <div class="text-center px-2">
+                    <span class="text-[10px] text-slate-400 block uppercase">Beruntun</span>
+                    <span id="ui-streak" class="text-base md:text-lg font-bold text-amber-400 mono-font">🔥 0</span>
+                </div>
+            </div>
+
+            <!-- Tombol Kontrol Mode & Suara -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- Toggle Kamera Sensor -->
+                <button id="btn-toggle-cam" onclick="toggleCameraSensor()" class="sensor-target flex items-center gap-2 px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs md:text-sm shadow-lg shadow-cyan-600/30 transition transform active:scale-95">
+                    <i class="fa-solid fa-video"></i>
+                    <span id="cam-btn-text">Kamera Sensor</span>
+                </button>
+
+                <!-- Toggle Simulasi Sensor Gerak (Tanpa Kamera / Untuk Smartboard & Mouse) -->
+                <button id="btn-toggle-sim" onclick="toggleSimSensor()" class="sensor-target flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-600/80 hover:bg-purple-500 text-white font-semibold text-xs md:text-sm border border-purple-400/40 transition transform active:scale-95" title="Simulasi Sensor Tangan Virtual">
+                    <i class="fa-solid fa-hand-point-up"></i>
+                    <span id="sim-btn-text">Sensor Virtual: OFF</span>
+                </button>
+
+                <!-- Tombol Panduan Materi -->
+                <button onclick="toggleGuideModal()" class="sensor-target p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition" title="Cara Bermain & Konsep Rasio">
+                    <i class="fa-solid fa-circle-question text-lg"></i>
+                </button>
+
+                <!-- Tombol Suara -->
+                <button id="btn-sound" onclick="toggleSound()" class="sensor-target p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 transition" title="Suara Efek">
+                    <i class="fa-solid fa-volume-high text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- KONTEN UTAMA GAME -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 md:p-6 grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6 items-stretch">
+
+        <!-- KOLOM KIRI: LAYAR PEMINDAI SENSOR GERAK & MISI (4 Kolom di layar besar) -->
+        <div class="lg:col-span-4 flex flex-col gap-4">
+            
+            <!-- MONITOR SENSOR GERAK AI -->
+            <div class="bg-slate-900/90 rounded-3xl p-4 neon-border-cyan relative overflow-hidden flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-2 z-10">
+                    <div class="flex items-center gap-2">
+                        <span id="sensor-status-dot" class="w-3 h-3 rounded-full bg-amber-400 animate-ping"></span>
+                        <span class="text-xs font-bold uppercase tracking-wider text-cyan-300 mono-font">PEMINDAI GERAK BIOMETRIK</span>
+                    </div>
+                    <span id="sensor-fps" class="text-[11px] mono-font text-slate-400 bg-slate-800 px-2 py-0.5 rounded">SIAGA</span>
+                </div>
+
+                <!-- Layar Kamera & Visualisasi Kerangka Tangan -->
+                <div class="relative w-full aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-cyan-500/40 flex items-center justify-center">
+                    <!-- Elemen Video Tersembunyi untuk MediaPipe -->
+                    <video id="webcam-video" class="hidden" playsinline muted></video>
+                    
+                    <!-- Kanvas Visualisasi Sensor (Menggambar Jaring Tangan & Radar) -->
+                    <canvas id="sensor-canvas" class="w-full h-full object-cover"></canvas>
+
+                    <!-- Efek Garis Pemindai -->
+                    <div class="scanner-beam absolute inset-0 pointer-events-none"></div>
+
+                    <!-- Overlay Info saat Kamera & Simulasi Belum Aktif -->
+                    <div id="camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-slate-950/85 backdrop-blur-sm z-10">
+                        <div class="w-11 h-11 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center mb-2 text-cyan-400 animate-pulse">
+                            <i class="fa-solid fa-hand-paper text-xl"></i>
+                        </div>
+                        <p id="camera-msg-title" class="text-xs md:text-sm font-semibold text-white mb-1">Pilih Mode Sensor Gerak</p>
+                        <p id="camera-msg-sub" class="text-[11px] text-slate-400 max-w-xs mb-3">
+                            Gunakan <b>Kamera Web</b> untuk melacak lambaian tangan di udara, atau gunakan <b>Sensor Virtual</b> untuk melihat kerangka tangan yang mengikuti gerakan sentuhan/kursor.
+                        </p>
+                        <div class="flex flex-wrap justify-center gap-2">
+                            <button onclick="toggleCameraSensor()" class="px-3.5 py-1.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition shadow-md shadow-cyan-500/30">
+                                <i class="fa-solid fa-camera mr-1"></i> Kamera AI
+                            </button>
+                            <button onclick="toggleSimSensor()" class="px-3.5 py-1.5 rounded-full bg-purple-500 hover:bg-purple-400 text-white font-bold text-xs transition shadow-md shadow-purple-500/30">
+                                <i class="fa-solid fa-hand-sparkles mr-1"></i> Sensor Virtual
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- HUD Koordinat Tangan -->
+                    <div class="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] mono-font text-cyan-300/90 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-cyan-500/30 pointer-events-none z-20">
+                        <span id="hud-coords">X: 0.50 | Y: 0.50</span>
+                        <span id="hud-gesture" class="text-emerald-400 font-bold">SENTUH / GERAK</span>
+                    </div>
+                </div>
+
+                <!-- Pilihan Mode Interaksi Cepat -->
+                <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div class="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-hand-point-up text-cyan-400 text-base"></i>
+                        <div>
+                            <div class="font-bold text-white leading-tight">Arahkan Tangan</div>
+                            <div class="text-[10px] text-slate-400">Tahan 1 detik = Klik</div>
+                        </div>
+                    </div>
+                    <div class="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-tablet-screen-button text-purple-400 text-base"></i>
+                        <div>
+                            <div class="font-bold text-white leading-tight">Layar Sentuh</div>
+                            <div class="text-[10px] text-slate-400">Ketuk / Geser Tabung</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL MISI & KONSEP MATEMATIKA -->
+            <div class="bg-slate-900/90 rounded-3xl p-4 border border-slate-800 flex-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold uppercase tracking-wider text-purple-400 mono-font">
+                            <i class="fa-solid fa-flask mr-1"></i> MISI LABORATORIUM
+                        </span>
+                        <span id="level-badge" class="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 font-semibold">
+                            Tingkat Dasar
+                        </span>
+                    </div>
+
+                    <!-- Deskripsi Soal Cerita Kontekstual -->
+                    <div id="question-story" class="text-sm md:text-base text-slate-200 bg-slate-800/70 p-3.5 rounded-2xl border border-slate-700/80 mb-3 leading-relaxed">
+                        Memuat misi rasio pecahan...
+                    </div>
+
+                    <!-- Kotak Rumus / Petunjuk Rasio Pecahan -->
+                    <div class="bg-gradient-to-br from-slate-800/90 to-slate-900 p-3.5 rounded-2xl border border-cyan-500/30">
+                        <div class="text-xs text-cyan-300 font-semibold mb-1 flex items-center justify-between">
+                            <span><i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i> Petunjuk Konsep:</span>
+                            <button onclick="showStepHint()" class="sensor-target text-[11px] underline text-cyan-400 hover:text-cyan-300 px-1">Lihat Cara Hitung</button>
+                        </div>
+                        <p id="math-hint" class="text-xs text-slate-300 leading-relaxed">
+                            Samakan penyebut kedua pecahan atau kalikan silang untuk menemukan perbandingan bilangan bulat paling sederhana!
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Pilihan Mode Permainan -->
+                <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-2">
+                    <span class="text-xs text-slate-400 font-medium">Pilih Tantangan:</span>
+                    <div class="flex gap-1.5">
+                        <button onclick="setDifficulty('easy')" id="diff-easy" class="sensor-target px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 transition">Dasar</button>
+                        <button onclick="setDifficulty('medium')" id="diff-medium" class="sensor-target px-3 py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">Menengah</button>
+                        <button onclick="setDifficulty('hard')" id="diff-hard" class="sensor-target px-3 py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition">Mahir</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- KOLOM KANAN: ARENA INTERAKTIF TABUNG RASIO PECAHAN (8 Kolom di layar besar) -->
+        <div class="lg:col-span-8 bg-slate-900/90 rounded-3xl p-4 md:p-6 border border-slate-800 flex flex-col justify-between relative overflow-hidden">
+            
+            <!-- Papan Target Rasio Pecahan di Atas -->
+            <div class="bg-slate-950/90 rounded-2xl p-4 border border-slate-800 shadow-inner mb-4">
+                <div class="text-center text-xs uppercase tracking-widest text-slate-400 mb-2 font-semibold">
+                    TARGET RASIO PECAHAN YANG HARUS DISEDERHANAKAN
+                </div>
+                
+                <div class="flex items-center justify-center gap-4 md:gap-8">
+                    <!-- Pecahan A (Cairan Sian) -->
+                    <div class="flex items-center gap-3 bg-cyan-950/40 px-4 py-2 rounded-2xl border border-cyan-500/40">
+                        <div class="w-3 h-10 rounded-full bg-cyan-400 shadow-[0_0_10px_#06b6d4]"></div>
+                        <div class="text-center">
+                            <span class="text-[10px] text-cyan-300 uppercase block font-bold">Cairan A</span>
+                            <div id="frac-a-display" class="flex flex-col items-center justify-center font-bold text-xl md:text-2xl text-white mono-font leading-none mt-1">
+                                <span id="num-a">1</span>
+                                <span class="w-full h-0.5 bg-cyan-400 my-1"></span>
+                                <span id="den-a">2</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Simbol Rasio (:) -->
+                    <div class="text-3xl md:text-4xl font-extrabold text-amber-400 animate-pulse mono-font">
+                        :
+                    </div>
+
+                    <!-- Pecahan B (Cairan Ungu) -->
+                    <div class="flex items-center gap-3 bg-purple-950/40 px-4 py-2 rounded-2xl border border-purple-500/40">
+                        <div class="text-center">
+                            <span class="text-[10px] text-purple-300 uppercase block font-bold">Cairan B</span>
+                            <div id="frac-b-display" class="flex flex-col items-center justify-center font-bold text-xl md:text-2xl text-white mono-font leading-none mt-1">
+                                <span id="num-b">1</span>
+                                <span class="w-full h-0.5 bg-purple-400 my-1"></span>
+                                <span id="den-b">3</span>
+                            </div>
+                        </div>
+                        <div class="w-3 h-10 rounded-full bg-purple-400 shadow-[0_0_10px_#a855f7]"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AREA DUA TABUNG REAKTOR INTERAKTIF (Bisa Disentuh, Digeser, atau Diarahkan Tangan) -->
+            <div class="grid grid-cols-2 gap-4 md:gap-8 my-auto py-2 items-center">
+                
+                <!-- TABUNG A (KIRI - SIAN) -->
+                <div class="flex flex-col items-center">
+                    <div class="flex items-center justify-between w-full max-w-[220px] mb-2 px-1">
+                        <span class="text-xs md:text-sm font-bold text-cyan-400">TABUNG A</span>
+                        <span id="val-tube-a" class="text-lg md:text-2xl font-extrabold text-white mono-font bg-cyan-500/20 px-3 py-0.5 rounded-xl border border-cyan-400">1</span>
+                    </div>
+
+                    <!-- Wadah Silinder Visual + Kontrol -->
+                    <div class="flex items-center gap-2 md:gap-4 w-full justify-center">
+                        <!-- Tombol +/- Besar untuk Sensor Gerak & Papan Interaktif -->
+                        <div class="flex flex-col gap-3">
+                            <button onclick="changeTubeValue('A', 1)" data-action="tubeA-up" class="sensor-target w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-cyan-500 hover:bg-cyan-400 active:scale-90 text-slate-950 font-extrabold text-2xl shadow-lg shadow-cyan-500/30 flex items-center justify-center transition">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                            <button onclick="changeTubeValue('A', -1)" data-action="tubeA-down" class="sensor-target w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-90 text-cyan-400 border-2 border-cyan-500/50 font-extrabold text-2xl flex items-center justify-center transition">
+                                <i class="fa-solid fa-minus"></i>
+                            </button>
+                        </div>
+
+                        <!-- Tabung Gelas yang Bisa Disentuh/Digeser Langsung -->
+                        <div id="tube-a-container" 
+                             onpointerdown="handleTubeTouch(event, 'A')" 
+                             onpointermove="handleTubeDrag(event, 'A')"
+                             class="relative w-24 md:w-32 h-56 md:h-64 bg-slate-950/90 rounded-3xl neon-border-cyan overflow-hidden cursor-pointer flex flex-col justify-end p-1.5 select-none touch-none">
+                            
+                            <!-- Garis Takaran Skala 1 - 12 -->
+                            <div id="scale-lines-a" class="absolute inset-0 flex flex-col justify-between py-2 px-2 pointer-events-none z-20"></div>
+
+                            <!-- Cairan Sian -->
+                            <div id="liquid-a" class="w-full bg-gradient-to-t from-cyan-600 via-cyan-400 to-teal-300 rounded-2xl liquid-transition relative shadow-[0_0_25px_#06b6d4]" style="height: 8.33%;">
+                                <div class="w-full h-2 bg-white/40 rounded-full"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="text-[11px] text-slate-400 mt-2 text-center">Sentuh tabung atau tahan tangan di tombol <b>+ / -</b></span>
+                </div>
+
+                <!-- TABUNG B (KANAN - UNGU) -->
+                <div class="flex flex-col items-center">
+                    <div class="flex items-center justify-between w-full max-w-[220px] mb-2 px-1">
+                        <span class="text-xs md:text-sm font-bold text-purple-400">TABUNG B</span>
+                        <span id="val-tube-b" class="text-lg md:text-2xl font-extrabold text-white mono-font bg-purple-500/20 px-3 py-0.5 rounded-xl border border-purple-400">1</span>
+                    </div>
+
+                    <!-- Wadah Silinder Visual + Kontrol -->
+                    <div class="flex items-center gap-2 md:gap-4 w-full justify-center">
+                        <!-- Tabung Gelas yang Bisa Disentuh/Digeser Langsung -->
+                        <div id="tube-b-container" 
+                             onpointerdown="handleTubeTouch(event, 'B')" 
+                             onpointermove="handleTubeDrag(event, 'B')"
+                             class="relative w-24 md:w-32 h-56 md:h-64 bg-slate-950/90 rounded-3xl neon-border-purple overflow-hidden cursor-pointer flex flex-col justify-end p-1.5 select-none touch-none">
+                            
+                            <!-- Garis Takaran Skala 1 - 12 -->
+                            <div id="scale-lines-b" class="absolute inset-0 flex flex-col justify-between py-2 px-2 pointer-events-none z-20"></div>
+
+                            <!-- Cairan Ungu -->
+                            <div id="liquid-b" class="w-full bg-gradient-to-t from-purple-700 via-purple-500 to-fuchsia-300 rounded-2xl liquid-transition relative shadow-[0_0_25px_#a855f7]" style="height: 8.33%;">
+                                <div class="w-full h-2 bg-white/40 rounded-full"></div>
+                            </div>
+                        </div>
+
+                        <!-- Tombol +/- Besar untuk Sensor Gerak & Papan Interaktif -->
+                        <div class="flex flex-col gap-3">
+                            <button onclick="changeTubeValue('B', 1)" data-action="tubeB-up" class="sensor-target w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-purple-500 hover:bg-purple-400 active:scale-90 text-slate-950 font-extrabold text-2xl shadow-lg shadow-purple-500/30 flex items-center justify-center transition">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                            <button onclick="changeTubeValue('B', -1)" data-action="tubeB-down" class="sensor-target w-12 h-12 md:w-16 md:h-16 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-90 text-purple-400 border-2 border-purple-500/50 font-extrabold text-2xl flex items-center justify-center transition">
+                                <i class="fa-solid fa-minus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <span class="text-[11px] text-slate-400 mt-2 text-center">Sentuh tabung atau tahan tangan di tombol <b>+ / -</b></span>
+                </div>
+
+            </div>
+
+            <!-- BARIS BAWAH: PERBANDINGAN SAAT INI & TOMBOL EKSEKUSI -->
+            <div class="mt-4 pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                
+                <!-- Tampilan Rasio Rakitan Siswa -->
+                <div class="flex items-center gap-3 bg-slate-950 px-5 py-2.5 rounded-2xl border border-slate-800 w-full sm:w-auto justify-center">
+                    <span class="text-xs text-slate-400 uppercase font-semibold">Rasio Pilihanmu:</span>
+                    <div class="text-xl md:text-2xl font-extrabold mono-font">
+                        <span id="summary-a" class="text-cyan-400">1</span>
+                        <span class="text-slate-500 mx-1">:</span>
+                        <span id="summary-b" class="text-purple-400">1</span>
+                    </div>
+                </div>
+
+                <!-- Tombol Aksi Utama -->
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <button onclick="resetTubes()" class="sensor-target px-4 py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-left"></i> Reset
+                    </button>
+
+                    <button id="btn-submit" onclick="checkRatioAnswer()" class="sensor-target flex-1 sm:flex-initial px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-extrabold text-base md:text-lg shadow-xl shadow-emerald-500/30 transition transform active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> CAMPURKAN SEKARANG!
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- MODAL FEEDBACK HASIL (Muncul di dalam arena saat menjawab) -->
+            <div id="feedback-overlay" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md z-40 flex flex-col items-center justify-center p-6 text-center">
+                <div id="feedback-icon" class="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl mb-4 shadow-2xl">
+                    ✨
+                </div>
+                <h2 id="feedback-title" class="text-2xl md:text-3xl font-extrabold text-white mb-2">Campuran Sempurna!</h2>
+                <p id="feedback-explanation" class="text-sm md:text-base text-slate-300 max-w-lg mb-6 bg-slate-900 p-4 rounded-2xl border border-slate-800 mono-font leading-relaxed">
+                    Penjelasan penyelesaian...
+                </p>
+                <div class="flex gap-3">
+                    <button id="btn-retry" onclick="closeFeedback()" class="sensor-target hidden px-6 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition">
+                        Coba Lagi
+                    </button>
+                    <button id="btn-next" onclick="nextQuestion()" class="sensor-target px-8 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 font-extrabold text-lg shadow-lg shadow-cyan-500/30 transition">
+                        Misi Berikutnya <i class="fa-solid fa-arrow-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- MODAL PANDUAN & KONSEP RASIO PECAHAN -->
+    <div id="guide-modal" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-cyan-500/40 rounded-3xl max-w-2xl w-full p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button onclick="toggleGuideModal()" class="absolute top-4 right-4 w-10 h-10 rounded-full bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <h3 class="text-xl md:text-2xl font-bold text-cyan-400 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-book-open-reader"></i> Panduan Bermain & Konsep Rasio Pecahan
+            </h3>
+
+            <div class="space-y-4 text-sm text-slate-300 leading-relaxed">
+                <div class="bg-slate-800/80 p-4 rounded-2xl border border-slate-700">
+                    <h4 class="font-bold text-white text-base mb-1">💡 Cara Menyederhanakan Rasio Pecahan</h4>
+                    <p class="mb-2">Jika terdapat perbandingan dua pecahan seperti <b class="text-cyan-400">1/2 : 1/3</b>, kita dapat mengubahnya menjadi perbandingan bilangan bulat paling sederhana dengan 2 cara mudah:</p>
+                    <ol class="list-decimal list-inside space-y-1 text-slate-200">
+                        <li><b>Kali Silang:</b> Kalikan pembilang kiri dengan penyebut kanan <span class="mono-font text-cyan-300">(1 × 3 = 3)</span>, dan pembilang kanan dengan penyebut kiri <span class="mono-font text-purple-300">(1 × 2 = 2)</span>. Hasilnya adalah <b>3 : 2</b>.</li>
+                        <li><b>KPK Penyebut:</b> Kalikan kedua pecahan dengan KPK dari penyebutnya (KPK 2 dan 3 adalah 6). Maka <span class="mono-font">(1/2 × 6) : (1/3 × 6) = 3 : 2</span>.</li>
+                    </ol>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="bg-slate-800/60 p-3.5 rounded-2xl border border-cyan-500/30">
+                        <h4 class="font-bold text-cyan-300 mb-1"><i class="fa-solid fa-hand-sparkles mr-1"></i> Mode Sensor Kamera & Virtual</h4>
+                        <p class="text-xs text-slate-300">Klik <b>Kamera AI</b> untuk menggunakan gerakan tangan di depan webcam, atau klik <b>Sensor Virtual</b> untuk menampilkan kerangka tangan biometrik yang mengikuti gerakan tangan di Papan Interaktif/Layar Sentuh. Tahan kursor selama 1 detik di atas tombol untuk memicu klik otomatis!</p>
+                    </div>
+                    <div class="bg-slate-800/60 p-3.5 rounded-2xl border border-purple-500/30">
+                        <h4 class="font-bold text-purple-300 mb-1"><i class="fa-solid fa-chalkboard-user mr-1"></i> Papan Interaktif, iPad & HP</h4>
+                        <p class="text-xs text-slate-300">Siswa dapat maju ke Papan Interaktif Digital atau menggunakan tablet untuk langsung menyentuh dan menggeser tinggi cairan di dalam Tabung A dan Tabung B.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 text-right">
+                <button onclick="toggleGuideModal()" class="px-6 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold transition">
+                    Mengerti, Ayo Mulai!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**************************************************************
+         * 1. BANK SOAL & GENERATOR MATERI RASIO PECAHAN
+         **************************************************************/
+        const MAX_SCALE = 12;
+        let currentDifficulty = 'easy';
+        let currentLevel = 1;
+        let score = 0;
+        let streak = 0;
+        let tubeA = 1;
+        let tubeB = 1;
+        let currentProblem = null;
+        let soundEnabled = true;
+
+        const questionBank = {
+            easy: [
+                {
+                    numA: 1, denA: 2, numB: 1, denB: 3,
+                    ansA: 3, ansB: 2,
+                    story: "Untuk membuat ramuan energi, ilmuwan mencampurkan <b>1/2 liter Cairan A</b> dengan <b>1/3 liter Cairan B</b>. Berapakah rasio bilangan bulat paling sederhana dari Cairan A terhadap Cairan B?",
+                    hint: "Kalikan kedua pecahan dengan KPK dari 2 dan 3 (yaitu 6): (1/2 × 6) : (1/3 × 6) = 3 : 2."
+                },
+                {
+                    numA: 1, denA: 4, numB: 1, denB: 2,
+                    ansA: 1, ansB: 2,
+                    story: "Sebuah resep pupuk organik membutuhkan <b>1/4 bagian kompos A</b> dan <b>1/2 bagian kompos B</b>. Atur tinggi kedua tabung agar menunjukkan rasio paling sederhana!",
+                    hint: "Kalikan kedua pecahan dengan angka 4: (1/4 × 4) : (1/2 × 4) = 1 : 2."
+                },
+                {
+                    numA: 2, denA: 5, numB: 3, denB: 5,
+                    ansA: 2, ansB: 3,
+                    story: "Jika penyebut kedua pecahan sudah sama, yaitu <b>2/5 liter Cairan A</b> berbanding <b>3/5 liter Cairan B</b>, berapakah rasio sederhananya?",
+                    hint: "Karena penyebutnya sama-sama 5, kamu cukup membandingkan pembilangnya langsung: 2 : 3."
+                },
+                {
+                    numA: 1, denA: 3, numB: 1, denB: 6,
+                    ansA: 2, ansB: 1,
+                    story: "Seorang koki mencampur <b>1/3 cangkir sirup biru</b> dan <b>1/6 cangkir sirup ungu</b>. Tentukan rasio takaran paling sederhana pada tabung!",
+                    hint: "Kalikan kedua pecahan dengan KPK 3 dan 6 (yaitu 6): (1/3 × 6) : (1/6 × 6) = 2 : 1."
+                },
+                {
+                    numA: 3, denA: 4, numB: 1, denB: 4,
+                    ansA: 3, ansB: 1,
+                    story: "Dalam eksperimen warna, dicampurkan <b>3/4 bagian pigmen A</b> dan <b>1/4 bagian pigmen B</b>. Berapa perbandingan sederhananya?",
+                    hint: "Penyebutnya sudah sama-sama 4, sehingga perbandingan pembilangnya adalah 3 : 1."
+                }
+            ],
+            medium: [
+                {
+                    numA: 2, denA: 3, numB: 1, denB: 2,
+                    ansA: 4, ansB: 3,
+                    story: "Reaktor membutuhkan campuran <b>2/3 liter serum A</b> dan <b>1/2 liter serum B</b>. Ubah rasio pecahan ini menjadi bilangan bulat di tabung!",
+                    hint: "Gunakan kali silang: Tabung A = (2 × 2 = 4), Tabung B = (1 × 3 = 3). Jadi rasionya 4 : 3."
+                },
+                {
+                    numA: 3, denA: 4, numB: 2, denB: 3,
+                    ansA: 9, ansB: 8,
+                    story: "Dua baterai diisi daya dengan rasio arus <b>3/4 Ampere</b> berbanding <b>2/3 Ampere</b>. Berapa perbandingan bilangan bulatnya?",
+                    hint: "Kalikan silang pembilang dan penyebut: A = (3 × 3 = 9) dan B = (2 × 4 = 8). Rasio = 9 : 8."
+                },
+                {
+                    numA: 2, denA: 5, numB: 1, denB: 2,
+                    ansA: 4, ansB: 5,
+                    story: "Sebuah taman menggunakan <b>2/5 lahan untuk bunga A</b> dan <b>1/2 lahan untuk bunga B</b>. Berapakah rasio luas lahan A terhadap B?",
+                    hint: "Kalikan kedua pecahan dengan KPK 5 dan 2 (yaitu 10): (2/5 × 10) : (1/2 × 10) = 4 : 5."
+                },
+                {
+                    numA: 3, denA: 5, numB: 1, denB: 3,
+                    ansA: 9, ansB: 5,
+                    story: "Campuran bahan bakar roket terdiri dari <b>3/5 bagian cairan A</b> dan <b>1/3 bagian cairan B</b>. Susun rasio bulatnya!",
+                    hint: "Kalikan silang: Tabung A = 3 × 3 = 9, Tabung B = 1 × 5 = 5."
+                }
+            ],
+            hard: [
+                {
+                    numA: 2, denA: 3, numB: 4, denB: 9,
+                    ansA: 3, ansB: 2,
+                    story: "Tantangan Mahir! Sederhanakan rasio pecahan <b>2/3 liter Cairan A</b> berbanding <b>4/9 liter Cairan B</b> ke bentuk paling kecil!",
+                    hint: "Samakan penyebut menjadi 9: (6/9) : (4/9) = 6 : 4. Lalu bagi keduanya dengan 2 menjadi 3 : 2!"
+                },
+                {
+                    numA: 3, denA: 4, numB: 9, denB: 8,
+                    ansA: 2, ansB: 3,
+                    story: "Sensor mendeteksi aliran <b>3/4 liter/detik di pipa A</b> dan <b>9/8 liter/detik di pipa B</b>. Berapa rasio paling sederhananya?",
+                    hint: "Kalikan kedua pecahan dengan 8: (3/4 × 8) : (9/8 × 8) = 6 : 9. Sederhanakan dibagi 3 menjadi 2 : 3!"
+                },
+                {
+                    numA: 5, denA: 6, numB: 2, denB: 3,
+                    ansA: 5, ansB: 4,
+                    story: "Untuk membuat kristal murni, diperlukan <b>5/6 gram zat A</b> dan <b>2/3 gram zat B</b>. Tentukan rasio bilangan bulatnya!",
+                    hint: "Kalikan kedua pecahan dengan 6: (5/6 × 6) = 5, dan (2/3 × 6) = 4. Jadi 5 : 4."
+                },
+                {
+                    numA: 4, denA: 5, numB: 8, denB: 15,
+                    ansA: 3, ansB: 2,
+                    story: "Kecepatan robot A adalah <b>4/5 meter/detik</b> sedangkan robot B adalah <b>8/15 meter/detik</b>. Sederhanakan perbandingan kecepatannya!",
+                    hint: "Kalikan keduanya dengan 15: (4/5 × 15 = 12) dan (8/15 × 15 = 8). Sederhanakan 12 : 8 dibagi 4 menjadi 3 : 2!"
+                }
+            ]
+        };
+
+        /**************************************************************
+         * 2. EFEK SUARA SINTETIS (Web Audio API Aman)
+         **************************************************************/
+        let audioCtx = null;
+
+        function playTone(freq, type = 'sine', duration = 0.12) {
+            if (!soundEnabled) return;
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+                if (!audioCtx) audioCtx = new AudioContextClass();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                // Abaikan jika browser memblokir autoplay audio
+            }
+        }
+
+        function playSuccessSound() {
+            playTone(523.25, 'triangle', 0.15);
+            setTimeout(() => playTone(659.25, 'triangle', 0.15), 120);
+            setTimeout(() => playTone(783.99, 'triangle', 0.3), 240);
+        }
+
+        function playErrorSound() {
+            playTone(220, 'sawtooth', 0.2);
+            setTimeout(() => playTone(165, 'sawtooth', 0.3), 180);
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('btn-sound');
+            btn.innerHTML = soundEnabled
+                ? '<i class="fa-solid fa-volume-high text-lg"></i>'
+                : '<i class="fa-solid fa-volume-xmark text-lg text-slate-500"></i>';
+        }
+
+        /**************************************************************
+         * 3. INISIALISASI VISUAL TABUNG & MEKANIK GAME
+         **************************************************************/
+        function renderScaleMarks() {
+            const containerA = document.getElementById('scale-lines-a');
+            const containerB = document.getElementById('scale-lines-b');
+            if (!containerA || !containerB) return;
+            containerA.innerHTML = '';
+            containerB.innerHTML = '';
+
+            for (let i = MAX_SCALE; i >= 1; i--) {
+                const createTick = () => {
+                    const row = document.createElement('div');
+                    row.className = 'flex items-center justify-between w-full text-[9px] mono-font text-slate-400/70';
+                    row.innerHTML = `<span>${i}</span><span class="w-4 h-[1px] bg-slate-500/40"></span>`;
+                    return row;
+                };
+                containerA.appendChild(createTick());
+                containerB.appendChild(createTick());
+            }
+        }
+
+        function updateTubesUI() {
+            const pctA = (tubeA / MAX_SCALE) * 100;
+            const pctB = (tubeB / MAX_SCALE) * 100;
+
+            document.getElementById('liquid-a').style.height = `${pctA}%`;
+            document.getElementById('liquid-b').style.height = `${pctB}%`;
+
+            document.getElementById('val-tube-a').innerText = tubeA;
+            document.getElementById('val-tube-b').innerText = tubeB;
+
+            document.getElementById('summary-a').innerText = tubeA;
+            document.getElementById('summary-b').innerText = tubeB;
+        }
+
+        function changeTubeValue(tube, delta) {
+            if (tube === 'A') {
+                tubeA = Math.max(1, Math.min(MAX_SCALE, tubeA + delta));
+                playTone(300 + tubeA * 35, 'sine', 0.08);
+            } else {
+                tubeB = Math.max(1, Math.min(MAX_SCALE, tubeB + delta));
+                playTone(280 + tubeB * 35, 'sine', 0.08);
+            }
+            updateTubesUI();
+        }
+
+        function resetTubes() {
+            tubeA = 1;
+            tubeB = 1;
+            playTone(240, 'sine', 0.1);
+            updateTubesUI();
+        }
+
+        let isDraggingTube = false;
+        function calculateValueFromTouch(event, containerId) {
+            const el = document.getElementById(containerId);
+            if (!el) return null;
+            const rect = el.getBoundingClientRect();
+            const clientY = event.clientY !== undefined ? event.clientY : (event.touches && event.touches[0] ? event.touches[0].clientY : undefined);
+            if (clientY === undefined) return null;
+            const relY = Math.max(0, Math.min(rect.height, rect.bottom - clientY));
+            const ratio = relY / rect.height;
+            return Math.max(1, Math.min(MAX_SCALE, Math.ceil(ratio * MAX_SCALE)));
+        }
+
+        function handleTubeTouch(event, tube) {
+            isDraggingTube = true;
+            const val = calculateValueFromTouch(event, tube === 'A' ? 'tube-a-container' : 'tube-b-container');
+            if (val !== null) {
+                if (tube === 'A') tubeA = val;
+                else tubeB = val;
+                playTone(320 + val * 30, 'sine', 0.06);
+                updateTubesUI();
+            }
+        }
+
+        function handleTubeDrag(event, tube) {
+            if (!isDraggingTube && event.buttons !== 1) return;
+            const val = calculateValueFromTouch(event, tube === 'A' ? 'tube-a-container' : 'tube-b-container');
+            if (val !== null) {
+                if (tube === 'A' && tubeA !== val) {
+                    tubeA = val;
+                    playTone(320 + val * 30, 'sine', 0.05);
+                    updateTubesUI();
+                } else if (tube === 'B' && tubeB !== val) {
+                    tubeB = val;
+                    playTone(320 + val * 30, 'sine', 0.05);
+                    updateTubesUI();
+                }
+            }
+        }
+        window.addEventListener('pointerup', () => { isDraggingTube = false; });
+
+        /**************************************************************
+         * 4. MANAJEMEN SOAL & LEVEL
+         **************************************************************/
+        function setDifficulty(diff) {
+            currentDifficulty = diff;
+            const badges = { easy: 'Tingkat Dasar', medium: 'Tingkat Menengah', hard: 'Tingkat Mahir' };
+            document.getElementById('level-badge').innerText = badges[diff];
+
+            ['easy', 'medium', 'hard'].forEach(d => {
+                const btn = document.getElementById(`diff-${d}`);
+                if (d === diff) {
+                    btn.className = "sensor-target px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 transition";
+                } else {
+                    btn.className = "sensor-target px-3 py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:bg-slate-700 transition";
+                }
+            });
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const list = questionBank[currentDifficulty];
+            currentProblem = list[(currentLevel - 1) % list.length];
+
+            document.getElementById('num-a').innerText = currentProblem.numA;
+            document.getElementById('den-a').innerText = currentProblem.denA;
+            document.getElementById('num-b').innerText = currentProblem.numB;
+            document.getElementById('den-b').innerText = currentProblem.denB;
+
+            document.getElementById('question-story').innerHTML = currentProblem.story;
+            document.getElementById('math-hint').innerText = "Samakan penyebut kedua pecahan atau klik 'Lihat Cara Hitung' untuk bantuan.";
+            document.getElementById('ui-level').innerText = `${currentLevel}/10`;
+
+            resetTubes();
+        }
+
+        function showStepHint() {
+            if (!currentProblem) return;
+            playTone(600, 'sine', 0.1);
+            document.getElementById('math-hint').innerHTML = `<span class="text-amber-300 font-semibold">${currentProblem.hint}</span>`;
+        }
+
+        function checkRatioAnswer() {
+            if (!currentProblem) return;
+
+            const overlay = document.getElementById('feedback-overlay');
+            const icon = document.getElementById('feedback-icon');
+            const title = document.getElementById('feedback-title');
+            const exp = document.getElementById('feedback-explanation');
+            const btnRetry = document.getElementById('btn-retry');
+            const btnNext = document.getElementById('btn-next');
+
+            overlay.classList.remove('hidden');
+
+            if (tubeA === currentProblem.ansA && tubeB === currentProblem.ansB) {
+                playSuccessSound();
+                score += 100 + (streak * 20);
+                streak++;
+                document.getElementById('ui-score').innerText = score;
+                document.getElementById('ui-streak').innerText = `🔥 ${streak}`;
+
+                icon.className = "w-20 h-20 rounded-3xl bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-4xl mb-4 shadow-2xl";
+                icon.innerHTML = "🎉";
+                title.innerText = "Luar Biasa! Rasio Tepat!";
+                title.className = "text-2xl md:text-3xl font-extrabold text-emerald-400 mb-2";
+                exp.innerHTML = `Rasio pecahan <b>${currentProblem.numA}/${currentProblem.denA} : ${currentProblem.numB}/${currentProblem.denB}</b> senilai dengan perbandingan bulat paling sederhana <b>${currentProblem.ansA} : ${currentProblem.ansB}</b>.<br><br><span class="text-xs text-emerald-300">${currentProblem.hint}</span>`;
+                
+                btnRetry.classList.add('hidden');
+                btnNext.classList.remove('hidden');
+            } else if (tubeA * currentProblem.ansB === tubeB * currentProblem.ansA) {
+                playTone(440, 'triangle', 0.25);
+                icon.className = "w-20 h-20 rounded-3xl bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-4xl mb-4 shadow-2xl";
+                icon.innerHTML = "💡";
+                title.innerText = "Hampir Tepat! Sederhanakan Lagi!";
+                title.className = "text-2xl md:text-3xl font-extrabold text-amber-400 mb-2";
+                exp.innerHTML = `Rasio <b>${tubeA} : ${tubeB}</b> sudah sebanding, tetapi masih bisa dibagi lagi menjadi bilangan yang lebih kecil. Ayo sederhanakan!`;
+                
+                btnRetry.classList.remove('hidden');
+                btnNext.classList.add('hidden');
+            } else {
+                playErrorSound();
+                streak = 0;
+                document.getElementById('ui-streak').innerText = `🔥 0`;
+
+                icon.className = "w-20 h-20 rounded-3xl bg-rose-500/20 border-2 border-rose-400 flex items-center justify-center text-4xl mb-4 shadow-2xl";
+                icon.innerHTML = "🧪";
+                title.innerText = "Campuran Belum Seimbang!";
+                title.className = "text-2xl md:text-3xl font-extrabold text-rose-400 mb-2";
+                exp.innerHTML = `Rasio yang kamu masukkan adalah <b>${tubeA} : ${tubeB}</b>.<br>Petunjuk: ${currentProblem.hint}`;
+                
+                btnRetry.classList.remove('hidden');
+                btnNext.classList.add('hidden');
+            }
+        }
+
+        function closeFeedback() {
+            document.getElementById('feedback-overlay').classList.add('hidden');
+        }
+
+        function nextQuestion() {
+            closeFeedback();
+            currentLevel = currentLevel < 10 ? currentLevel + 1 : 1;
+            loadQuestion();
+        }
+
+        function toggleGuideModal() {
+            const modal = document.getElementById('guide-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        /**************************************************************
+         * 5. SISTEM SENSOR GERAK TANGAN (Kamera AI & Sensor Virtual)
+         **************************************************************/
+        let cameraActive = false;
+        let simSensorActive = false;
+        let handsDetector = null;
+        let cameraInstance = null;
+        let simHandNormX = 0.5;
+        let simHandNormY = 0.5;
+
+        const videoElement = document.getElementById('webcam-video');
+        const sensorCanvas = document.getElementById('sensor-canvas');
+        const sensorCtx = sensorCanvas.getContext('2d');
+        const virtualCursor = document.getElementById('virtual-cursor');
+        const cursorProgress = document.getElementById('cursor-progress');
+
+        let hoveredElement = null;
+        let hoverStartTime = 0;
+        const HOVER_DURATION_MS = 950;
+
+        // Mode Simulasi Sensor Gerak (Kerangka tangan virtual yang mengikuti gerakan pointer/sentuhan)
+        function toggleSimSensor() {
+            const simBtnText = document.getElementById('sim-btn-text');
+            const placeholder = document.getElementById('camera-placeholder');
+            const statusDot = document.getElementById('sensor-status-dot');
+
+            if (cameraActive) {
+                stopCameraSensor();
+            }
+
+            simSensorActive = !simSensorActive;
+
+            if (simSensorActive) {
+                simBtnText.innerText = "Sensor Virtual: ON";
+                placeholder.classList.add('hidden');
+                virtualCursor.classList.remove('hidden');
+                virtualCursor.classList.add('flex');
+                statusDot.className = "w-3 h-3 rounded-full bg-purple-400 animate-ping";
+                document.getElementById('sensor-fps').innerText = "VIRTUAL SENSOR ON";
+                document.getElementById('hud-gesture').innerText = "KERANGKA TANGAN AKTIF 🖐️";
+                playTone(580, 'sine', 0.1);
+            } else {
+                simBtnText.innerText = "Sensor Virtual: OFF";
+                placeholder.classList.remove('hidden');
+                virtualCursor.classList.add('hidden');
+                virtualCursor.classList.remove('flex');
+                statusDot.className = "w-3 h-3 rounded-full bg-amber-400 animate-ping";
+                document.getElementById('sensor-fps').innerText = "SIAGA";
+                document.getElementById('hud-gesture').innerText = "SENTUH / GERAK";
+                resetHoverState();
+            }
+        }
+
+        // Lacak pergerakan tangan/jari pada layar untuk menggerakkan kerangka tangan saat Sensor Virtual aktif
+        window.addEventListener('pointermove', (e) => {
+            if (!simSensorActive || cameraActive) return;
+            simHandNormX = Math.max(0, Math.min(1, e.clientX / window.innerWidth));
+            simHandNormY = Math.max(0, Math.min(1, e.clientY / window.innerHeight));
+
+            document.getElementById('hud-coords').innerText = `X: ${simHandNormX.toFixed(2)} | Y: ${simHandNormY.toFixed(2)}`;
+            updateVirtualCursor(e.clientX, e.clientY);
+        });
+
+        function stopCameraSensor() {
+            if (cameraInstance && typeof cameraInstance.stop === 'function') {
+                try { cameraInstance.stop(); } catch (e) {}
+            }
+            if (videoElement && videoElement.srcObject) {
+                try {
+                    videoElement.srcObject.getTracks().forEach(track => track.stop());
+                    videoElement.srcObject = null;
+                } catch (e) {}
+            }
+            cameraActive = false;
+            document.getElementById('cam-btn-text').innerText = "Kamera Sensor";
+            virtualCursor.classList.add('hidden');
+            virtualCursor.classList.remove('flex');
+            resetHoverState();
+        }
+
+        async function toggleCameraSensor() {
+            const btnText = document.getElementById('cam-btn-text');
+            const placeholder = document.getElementById('camera-placeholder');
+            const statusDot = document.getElementById('sensor-status-dot');
+
+            if (simSensorActive) {
+                toggleSimSensor();
+            }
+
+            if (cameraActive) {
+                stopCameraSensor();
+                placeholder.classList.remove('hidden');
+                statusDot.className = "w-3 h-3 rounded-full bg-amber-400 animate-ping";
+                document.getElementById('sensor-fps').innerText = "SIAGA";
+                document.getElementById('hud-gesture').innerText = "MODE SENTUH";
+                return;
+            }
+
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof Hands === 'undefined') {
+                // Jika browser/iframe tidak mengizinkan kamera, otomatis aktifkan Sensor Virtual
+                document.getElementById('camera-msg-title').innerText = "Kamera Dibatasi Browser - Mengaktifkan Sensor Virtual";
+                toggleSimSensor();
+                return;
+            }
+
+            try {
+                btnText.innerText = "Memuat Sensor...";
+                placeholder.classList.add('hidden');
+
+                if (!handsDetector) {
+                    handsDetector = new Hands({
+                        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+                    });
+
+                    handsDetector.setOptions({
+                        maxNumHands: 1,
+                        modelComplexity: 1,
+                        minDetectionConfidence: 0.6,
+                        minTrackingConfidence: 0.6
+                    });
+
+                    handsDetector.onResults(onHandSensorResults);
+                }
+
+                cameraInstance = new Camera(videoElement, {
+                    onFrame: async () => {
+                        if (cameraActive && handsDetector && videoElement.readyState >= 2) {
+                            await handsDetector.send({ image: videoElement });
+                        }
+                    },
+                    width: 640,
+                    height: 360
+                });
+
+                await cameraInstance.start();
+                cameraActive = true;
+                btnText.innerText = "Matikan Kamera";
+                virtualCursor.classList.remove('hidden');
+                virtualCursor.classList.add('flex');
+                statusDot.className = "w-3 h-3 rounded-full bg-emerald-400 animate-ping";
+                document.getElementById('sensor-fps').innerText = "KAMERA AI AKTIF";
+            } catch (err) {
+                // Fallback otomatis ke Sensor Virtual apabila kamera ditolak atau tidak ditemukan
+                cameraActive = false;
+                btnText.innerText = "Kamera Sensor";
+                toggleSimSensor();
+            }
+        }
+
+        function onHandSensorResults(results) {
+            if (!cameraActive) return;
+            const w = videoElement.videoWidth || 640;
+            const h = videoElement.videoHeight || 360;
+            sensorCanvas.width = w;
+            sensorCanvas.height = h;
+
+            sensorCtx.save();
+            sensorCtx.clearRect(0, 0, w, h);
+
+            // Cerminkan gambar video secara horizontal di dalam canvas
+            sensorCtx.translate(w, 0);
+            sensorCtx.scale(-1, 1);
+            if (results.image) {
+                sensorCtx.drawImage(results.image, 0, 0, w, h);
+            }
+
+            sensorCtx.fillStyle = 'rgba(6, 182, 212, 0.12)';
+            sensorCtx.fillRect(0, 0, w, h);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+
+                if (typeof drawConnectors === 'function' && typeof HAND_CONNECTIONS !== 'undefined') {
+                    drawConnectors(sensorCtx, landmarks, HAND_CONNECTIONS, {
+                        color: '#06b6d4',
+                        lineWidth: 4
+                    });
+                }
+                if (typeof drawLandmarks === 'function') {
+                    drawLandmarks(sensorCtx, landmarks, {
+                        color: '#10b981',
+                        lineWidth: 2,
+                        radius: 5
+                    });
+                }
+
+                const indexTip = landmarks[8];
+                const normX = Math.max(0, Math.min(1, 1 - indexTip.x));
+                const normY = Math.max(0, Math.min(1, indexTip.y));
+
+                const screenX = normX * window.innerWidth;
+                const screenY = normY * window.innerHeight;
+
+                document.getElementById('hud-coords').innerText = `X: ${normX.toFixed(2)} | Y: ${normY.toFixed(2)}`;
+                document.getElementById('hud-gesture').innerText = "TANGAN TERDETEKSI 👋";
+
+                updateVirtualCursor(screenX, screenY);
+            } else {
+                document.getElementById('hud-gesture').innerText = "ARAHKAN TANGAN KE KAMERA";
+                resetHoverState();
+            }
+
+            sensorCtx.restore();
+        }
+
+        function updateVirtualCursor(x, y) {
+            const safeX = Math.max(0, Math.min(window.innerWidth - 1, x));
+            const safeY = Math.max(0, Math.min(window.innerHeight - 1, y));
+            virtualCursor.style.transform = `translate(${safeX}px, ${safeY}px)`;
+
+            const elem = document.elementFromPoint(safeX, safeY);
+            const targetBtn = elem ? elem.closest('.sensor-target') : null;
+
+            if (targetBtn) {
+                if (hoveredElement !== targetBtn) {
+                    hoveredElement = targetBtn;
+                    hoverStartTime = performance.now();
+                    playTone(500, 'sine', 0.04);
+                } else {
+                    const elapsed = performance.now() - hoverStartTime;
+                    const progress = Math.min(1, elapsed / HOVER_DURATION_MS);
+                    const offset = 163 - (163 * progress);
+                    cursorProgress.style.strokeDashoffset = String(offset);
+
+                    if (progress >= 1) {
+                        const btnToClick = hoveredElement;
+                        hoverStartTime = performance.now() + 300;
+                        cursorProgress.style.strokeDashoffset = '163';
+                        btnToClick.classList.add('ring-4', 'ring-emerald-400');
+                        setTimeout(() => {
+                            btnToClick.classList.remove('ring-4', 'ring-emerald-400');
+                        }, 300);
+                        btnToClick.click();
+                    }
+                }
+            } else {
+                resetHoverState();
+            }
+        }
+
+        function resetHoverState() {
+            hoveredElement = null;
+            if (cursorProgress) {
+                cursorProgress.style.strokeDashoffset = '163';
+            }
+        }
+
+        // Menggambar Radar & Kerangka Tangan Biometrik saat mode Standby atau Sensor Virtual
+        function drawRadarAndVirtualHand() {
+            if (!cameraActive) {
+                const w = 400;
+                const h = 225;
+                sensorCanvas.width = w;
+                sensorCanvas.height = h;
+
+                sensorCtx.fillStyle = '#020617';
+                sensorCtx.fillRect(0, 0, w, h);
+
+                // Grid Radar
+                sensorCtx.strokeStyle = 'rgba(6, 182, 212, 0.18)';
+                sensorCtx.lineWidth = 1;
+                for (let x = 0; x < w; x += 25) {
+                    sensorCtx.beginPath();
+                    sensorCtx.moveTo(x, 0);
+                    sensorCtx.lineTo(x, h);
+                    sensorCtx.stroke();
+                }
+                for (let y = 0; y < h; y += 25) {
+                    sensorCtx.beginPath();
+                    sensorCtx.moveTo(0, y);
+                    sensorCtx.lineTo(w, y);
+                    sensorCtx.stroke();
+                }
+
+                // Gambar kerangka tangan biometrik jika Sensor Virtual menyala
+                if (simSensorActive) {
+                    const cx = simHandNormX * w;
+                    const cy = simHandNormY * h;
+
+                    const palmX = cx;
+                    const palmY = cy + 35;
+                    const wristX = cx;
+                    const wristY = cy + 75;
+
+                    const fingers = [
+                        { x: cx - 38, y: cy + 10 }, // Ibu Jari
+                        { x: cx - 16, y: cy - 25 }, // Telunjuk (Penunjuk Utama)
+                        { x: cx,      y: cy - 32 }, // Jari Tengah
+                        { x: cx + 16, y: cy - 24 }, // Jari Manis
+                        { x: cx + 32, y: cy - 10 }  // Kelingking
+                    ];
+
+                    // Garis tulang kerangka tangan
+                    sensorCtx.strokeStyle = '#06b6d4';
+                    sensorCtx.lineWidth = 3;
+                    sensorCtx.beginPath();
+                    sensorCtx.moveTo(wristX, wristY);
+                    sensorCtx.lineTo(palmX, palmY);
+                    sensorCtx.stroke();
+
+                    fingers.forEach((f, idx) => {
+                        const midX = (palmX + f.x) / 2;
+                        const midY = (palmY + f.y) / 2;
+                        sensorCtx.beginPath();
+                        sensorCtx.moveTo(palmX, palmY);
+                        sensorCtx.lineTo(midX, midY);
+                        sensorCtx.lineTo(f.x, f.y);
+                        sensorCtx.stroke();
+
+                        // Titik sendi hijau
+                        sensorCtx.fillStyle = idx === 1 ? '#34d399' : '#10b981';
+                        [ {x: midX, y: midY}, f ].forEach(pt => {
+                            sensorCtx.beginPath();
+                            sensorCtx.arc(pt.x, pt.y, idx === 1 ? 5 : 4, 0, Math.PI * 2);
+                            sensorCtx.fill();
+                        });
+                    });
+
+                    // Sendi telapak & pergelangan
+                    sensorCtx.fillStyle = '#06b6d4';
+                    [ {x: palmX, y: palmY}, {x: wristX, y: wristY} ].forEach(pt => {
+                        sensorCtx.beginPath();
+                        sensorCtx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+                        sensorCtx.fill();
+                    });
+
+                    // Lingkaran pemicu pada ujung telunjuk
+                    sensorCtx.strokeStyle = '#10b981';
+                    sensorCtx.lineWidth = 2;
+                    sensorCtx.beginPath();
+                    sensorCtx.arc(fingers[1].x, fingers[1].y, 11, 0, Math.PI * 2);
+                    sensorCtx.stroke();
+                }
+            }
+            requestAnimationFrame(drawRadarAndVirtualHand);
+        }
+
+        /**************************************************************
+         * 6. KONTROL SPLASH SCREEN (6 DETIK) & POP UP AWAL
+         **************************************************************/
+        function initSplashAndPopup() {
+            const splash = document.getElementById('splash-screen');
+            const welcomePopup = document.getElementById('welcome-popup');
+
+            // Tampilkan Splash Screen selama 6 detik (6000 ms), lalu buka Pop-up Awal
+            setTimeout(() => {
+                if (splash) {
+                    splash.style.opacity = '0';
+                    setTimeout(() => {
+                        splash.classList.add('hidden');
+                        if (welcomePopup) {
+                            welcomePopup.classList.remove('hidden');
+                        }
+                    }, 450);
+                }
+            }, 6000);
+        }
+
+        function startWithMode(mode) {
+            const welcomePopup = document.getElementById('welcome-popup');
+            if (welcomePopup) {
+                welcomePopup.classList.add('hidden');
+            }
+            playTone(523.25, 'sine', 0.12);
+
+            if (mode === 'camera') {
+                toggleCameraSensor();
+            } else if (mode === 'virtual') {
+                if (!simSensorActive) {
+                    toggleSimSensor();
+                }
+            }
+        }
+
+        window.onload = function () {
+            renderScaleMarks();
+            loadQuestion();
+            drawRadarAndVirtualHand();
+            initSplashAndPopup();
+        };
+    </script>
+</body>
+</html>
